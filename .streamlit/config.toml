@@ -1,0 +1,6 @@
+[server]
+headless = true
+
+[healthz]
+enabled = true
+timeout = 300
