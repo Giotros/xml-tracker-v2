@@ -22,6 +22,7 @@ def fetch_xml_content(url):
     headers = {'User-Agent': 'Mozilla/5.0'}
     r = requests.get(url, headers=headers)
     r.raise_for_status()
+    print(f"Downloaded content (first 500 chars): {r.content[:500]}")
     print("XML fetched successfully.")
     return r.content
 
