@@ -50,6 +50,7 @@ st.markdown("---")
 
 # --- UI: High-Level Metrics ---
 st.subheader("Κύρια Στοιχεία Περιόδου")
+# ... (Ο κώδικας για τα st.metric παραμένει ίδιος)
 col1, col2, col3 = st.columns(3)
 total_products_start = df_start.shape[0] if not df_start.empty else 0
 total_products_end = df_end.shape[0] if not df_end.empty else 0
@@ -67,18 +68,14 @@ with col3:
 st.markdown("---")
 
 # --- Comparison Logic & Display ---
-if df_start.empty and df_end.empty:
-    st.error(f"Δεν υπάρχουν δεδομένα ούτε για την ημερομηνία έναρξης ({start_date}) ούτε για την ημερομηνία λήξης ({end_date}).")
-elif df_start.empty:
-    st.warning(f"Δεν βρέθηκαν δεδομένα για την ημερομηνία έναρξης ({start_date}). Παρακαλώ επιλέξτε άλλη ημερομηνία.")
-elif df_end.empty:
-    st.warning(f"Δεν βρέθηκαν δεδομένα για την ημερομηνία λήξης ({end_date}). Παρακαλώ επιλέξτε άλλη ημερομηνία.")
+if df_start.empty or df_end.empty:
+    st.info("Δεν υπάρχουν δεδομένα για μία από τις δύο ημερομηνίες που επιλέξατε. Παρακαλώ επιλέξτε διαφορετικές ημερομηνίες.")
 elif start_date == end_date:
      st.info("Επιλέξτε δύο διαφορετικές ημερομηνίες για να δείτε τη σύγκριση.")
 else:
     st.subheader("🚨 Προϊόντα με Αλλαγές")
     
-    df_merged = pd.merge(df_start[['code', 'price', 'stock']], df_end[['code', 'price', 'stock']], on='code', suffixes=('_start', '_end'), how='inner')
+    df_merged = pd.merge(df_start[['code', 'price', 'stock', 'category']], df_end[['code', 'price', 'stock', 'category']], on='code', suffixes=('_start', '_end'), how='inner')
     df_merged['stock_diff'] = df_merged['stock_end'] - df_merged['stock_start']
     df_merged['price_diff'] = (df_merged['price_end'] - df_merged['price_start']).round(2)
 
@@ -89,48 +86,35 @@ else:
     else:
         st.write(f"Βρέθηκαν **{len(df_changed)}** προϊόντα με αλλαγές:")
 
-        df_display = df_changed[['code', 'stock_end', 'stock_diff', 'price_end', 'price_diff']].rename(columns={
+        # Ο πίνακας τώρα περιλαμβάνει και την κατηγορία
+        df_display = df_changed[['code', 'category_end', 'stock_end', 'stock_diff', 'price_end', 'price_diff']].rename(columns={
             'code': 'Κωδικός',
-            'stock_end': 'Τελικό Απόθεμα',
-            'stock_diff': 'Διαφορά Αποθ.',
+            'category_end': 'Κατηγορία',
+            'stock_end': 'Τελικό Απόθεμα', # Αυτή είναι η ποσότητα την "Έως ημερομηνία"
+            'stock_diff': 'Διαφορά Αποθ.', # Αυτή είναι η αφαίρεση
             'price_end': 'Τελική Τιμή',
             'price_diff': 'Διαφορά Τιμής'
         })
-
-        def style_diff(val):
-            if val > 0:
-                return 'color: #3cb371'
-            elif val < 0:
-                return 'color: #ff6347'
-            else:
-                return 'color: #808080'
-
-        st.dataframe(
-            df_display.style.applymap(style_diff, subset=['Διαφορά Αποθ.'])
-                              .applymap(style_diff, subset=['Διαφορά Τιμής'])
-                              .format({'Τελική Τιμή': '{:.2f}€', 'Διαφορά Τιμής': '{:+.2f}€'}),
-            use_container_width=True
-        )
-
+        
+        st.dataframe(df_display, use_container_width=True)
         st.markdown("---")
         
+        # --- ΝΕΟ: Γράφημα "Hot" Κατηγοριών ---
+        st.markdown("##### 🔥 Hot Κατηγορίες (με τις περισσότερες αλλαγές)")
+        hot_categories = df_changed['category_end'].value_counts().nlargest(10)
+        st.bar_chart(hot_categories)
+
+        # --- Οπτικοποίηση Top 5 Αποθέματος ---
         st.markdown("##### 📈 Top 5 Μεταβολές Αποθέματος")
         col1, col2 = st.columns(2)
         top_increases = df_changed[df_changed['stock_diff'] > 0].nlargest(5, 'stock_diff')
         with col1:
             st.write("Μεγαλύτερη Αύξηση")
-            if not top_increases.empty:
-                st.bar_chart(top_increases.set_index('code')['stock_diff'])
-            else:
-                st.write("Καμία αύξηση.")
-
+            st.bar_chart(top_increases.set_index('code')['stock_diff'])
         top_decreases = df_changed[df_changed['stock_diff'] < 0].nsmallest(5, 'stock_diff')
         with col2:
             st.write("Μεγαλύτερη Μείωση")
-            if not top_decreases.empty:
-                st.bar_chart(top_decreases.set_index('code')['stock_diff'])
-            else:
-                st.write("Καμία μείωση.")
+            st.bar_chart(top_decreases.set_index('code')['stock_diff'])
 
 # --- Expander for Raw Data ---
 with st.expander("🗂️ Προβολή όλων των δεδομένων για το επιλεγμένο διάστημα"):
