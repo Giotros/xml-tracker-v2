@@ -1,11 +1,23 @@
----
-title: Xml Tracker V2
-emoji: 🏢
-colorFrom: green
-colorTo: purple
-sdk: docker
-pinned: false
-license: mit
----
+# XML Change Tracker
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+Ένα απλό αλλά ισχυρό εργαλείο για την παρακολούθηση των αλλαγών σε τιμές και αποθέματα προϊόντων από αρχεία XML.
+
+## Live Demo
+
+Η εφαρμογή φιλοξενείται στη Render και μπορείτε να τη δείτε ζωντανά εδώ:
+**[https://xml-tracker-v2.onrender.com](https://xml-tracker-v2.onrender.com)**
+
+## Βασικές Λειτουργίες
+
+* **Αυτόματη Συλλογή Δεδομένων:** Ένα GitHub Action ενημερώνει τα δεδομένα καθημερινά.
+* **Σύγκριση Ημερομηνιών:** Οι χρήστες μπορούν να επιλέξουν δύο ημερομηνίες και να δουν μόνο τα προϊόντα που έχουν αλλάξει.
+* **Οπτικοποίηση:** Παρέχονται γραφήματα για τις σημαντικότερες αλλαγές.
+
+## Τεχνολογίες
+
+* Python
+* Streamlit
+* Pandas
+* Docker
+* GitHub Actions
+* Render
