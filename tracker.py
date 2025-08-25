@@ -8,11 +8,23 @@ import xml.etree.ElementTree as ET
 
 # --- Ρυθμίσεις ---
 PRODUCTS_XML_URL = "https://acalight.gr/xml/data.xml"
-CATEGORIES_XML_URL = "https://acalight.gr/xml/cat_attr_gr_uk.xml" # Το link για τις κατηγορίες
+CATEGORIES_XML_URL = "https://acalight.gr/xml/cat_attr_gr_uk.xml"
 OUTPUT_DIR = "data"
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, "history.csv")
-# Η νέα στήλη 'category' έχει προστεθεί εδώ
 FIELDS = ["datetime", "code", "price", "stock", "category"]
+
+# --- ΝΕΟ: Λέξεις-Κλειδιά για Κατηγοριοποίηση ---
+# Πρόσθεσε εδώ όσες λέξεις θέλεις.
+# Η λογική είναι: 'λέξη που ψάχνουμε': 'Όνομα Κατηγορίας που θα μπει'
+KEYWORD_CATEGORIES = {
+    'ανεμιστήρας': 'Ανεμιστήρες',
+    'φωτιστικό οροφής': 'Φωτιστικά Οροφής',
+    'spot': 'Φωτιστικά Spot',
+    'απλίκα': 'Απλίκες Τοίχου',
+    'led': 'Προϊόντα LED',
+    'ταινία': 'Ταινίες LED'
+}
+
 
 # --- Βοηθητικές Συναρτήσεις ---
 
@@ -21,7 +33,7 @@ def fetch_xml_content(url):
     print(f"Fetching XML from {url}...")
     headers = {'User-Agent': 'Mozilla/5.0'}
     r = requests.get(url, headers=headers)
-    r.raise_for_status() # Σταματάει αν υπάρχει σφάλμα HTTP (π.χ. 404)
+    r.raise_for_status()
     print("XML fetched successfully.")
     return r.content
 
@@ -33,7 +45,6 @@ def create_category_map(categories_xml_bytes):
         return category_map
     
     root = ET.fromstring(categories_xml_bytes)
-    # Ψάχνει για το tag <BigCatDescrGR>
     for product in root.findall('product'):
         code = product.find('Code')
         category = product.find('BigCatDescrGR')
@@ -43,7 +54,7 @@ def create_category_map(categories_xml_bytes):
     return category_map
 
 def process_products(products_xml_bytes, category_map):
-    """Επεξεργάζεται τα προϊόντα και τα συνδέει με τις κατηγορίες."""
+    """Επεξεργάζεται τα προϊόντα, συνδέει κατηγορίες και χρησιμοποιεί λέξεις-κλειδιά."""
     print("Parsing products XML and calculating stock...")
     if not products_xml_bytes:
         return []
@@ -57,6 +68,8 @@ def process_products(products_xml_bytes, category_map):
     rows = []
     for _, r in df.iterrows():
         code = r.get("code")
+        # Παίρνουμε το όνομα του προϊόντος για να ψάξουμε τις λέξεις-κλειδιά
+        product_name = str(r.get("descr_gr", "")).lower() 
         price = float(str(r.get("WholeSalePricegr") or r.get("WholeSalePriceGR") or 0).replace(",", "."))
         total_stock = 0
         
@@ -69,13 +82,23 @@ def process_products(products_xml_bytes, category_map):
             except (ValueError, TypeError):
                 pass
         
-        # Εδώ προσθέτει την κατηγορία σε κάθε προϊόν
+        # Λογική Κατηγοριοποίησης
+        category = category_map.get(code) # 1. Προσπάθησε να βρεις την κατηγορία από το αρχείο
+        
+        if not category: # 2. Αν δεν βρεθεί, ψάξε με λέξεις-κλειδιά
+            inferred_category = "Άγνωστη Κατηγορία" # Προεπιλογή
+            for keyword, cat_name in KEYWORD_CATEGORIES.items():
+                if keyword in product_name:
+                    inferred_category = cat_name
+                    break # Σταμάτα μόλις βρεις την πρώτη λέξη-κλειδί
+            category = inferred_category
+
         rows.append({
             "datetime": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "code": code,
             "price": price,
             "stock": total_stock,
-            "category": category_map.get(code, "Άγνωστη Κατηγορία")
+            "category": category
         })
     print(f"Processed {len(rows)} products.")
     return rows
@@ -96,17 +119,12 @@ def store_data(data_rows):
 # --- Κύρια Λειτουργία ---
 if __name__ == "__main__":
     try:
-        # 1. Παίρνει τις κατηγορίες
         categories_xml = fetch_xml_content(CATEGORIES_XML_URL)
         cat_map = create_category_map(categories_xml)
         
-        # 2. Παίρνει τα προϊόντα
         products_xml = fetch_xml_content(PRODUCTS_XML_URL)
-        
-        # 3. Τα συνδυάζει
         product_data = process_products(products_xml, cat_map)
         
-        # 4. Τα αποθηκεύει
         store_data(product_data)
         print("\nAll tasks completed successfully!")
     except Exception as e:
