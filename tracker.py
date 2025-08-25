@@ -8,10 +8,10 @@ import xml.etree.ElementTree as ET
 
 # --- Ρυθμίσεις ---
 PRODUCTS_XML_URL = "https://acalight.gr/xml/data.xml"
-CATEGORIES_XML_URL = "https://acalight.gr/xml/cat_attr_gr_uk.xml" # Το νέο link
+CATEGORIES_XML_URL = "https://acalight.gr/xml/cat_attr_gr_uk.xml" # Το link για τις κατηγορίες
 OUTPUT_DIR = "data"
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, "history.csv")
-# Προσθέσαμε το 'category' στα πεδία
+# Η νέα στήλη 'category' έχει προστεθεί εδώ
 FIELDS = ["datetime", "code", "price", "stock", "category"]
 
 # --- Βοηθητικές Συναρτήσεις ---
@@ -33,7 +33,7 @@ def create_category_map(categories_xml_bytes):
         return category_map
     
     root = ET.fromstring(categories_xml_bytes)
-    # Η δομή είναι <root><product><Code>...</Code><BigCatDescrGR>...</BigCatDescrGR>...</product></root>
+    # Ψάχνει για το tag <BigCatDescrGR>
     for product in root.findall('product'):
         code = product.find('Code')
         category = product.find('BigCatDescrGR')
@@ -69,12 +69,13 @@ def process_products(products_xml_bytes, category_map):
             except (ValueError, TypeError):
                 pass
         
+        # Εδώ προσθέτει την κατηγορία σε κάθε προϊόν
         rows.append({
             "datetime": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "code": code,
             "price": price,
             "stock": total_stock,
-            "category": category_map.get(code, "Άγνωστη Κατηγορία") # Αναζήτηση της κατηγορίας
+            "category": category_map.get(code, "Άγνωστη Κατηγορία")
         })
     print(f"Processed {len(rows)} products.")
     return rows
@@ -87,20 +88,25 @@ def store_data(data_rows):
     with open(OUTPUT_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         if not file_exists:
-            writer.writeheader() # Γράφει την κεφαλίδα μόνο αν το αρχείο είναι νέο
+            writer.writeheader()
         if data_rows:
-            writer.writerows(data_rows) # Γράφει όλες τις σειρές
+            writer.writerows(data_rows)
     print("Data stored successfully.")
 
 # --- Κύρια Λειτουργία ---
 if __name__ == "__main__":
     try:
+        # 1. Παίρνει τις κατηγορίες
         categories_xml = fetch_xml_content(CATEGORIES_XML_URL)
         cat_map = create_category_map(categories_xml)
         
+        # 2. Παίρνει τα προϊόντα
         products_xml = fetch_xml_content(PRODUCTS_XML_URL)
+        
+        # 3. Τα συνδυάζει
         product_data = process_products(products_xml, cat_map)
         
+        # 4. Τα αποθηκεύει
         store_data(product_data)
         print("\nAll tasks completed successfully!")
     except Exception as e:
