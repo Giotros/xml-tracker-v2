@@ -12,7 +12,7 @@ CATEGORIES_XML_URL = "https://acalight.gr/xml/cat_attr_gr_uk.xml" # Το νέο 
 OUTPUT_DIR = "data"
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, "history.csv")
 # Προσθέσαμε το 'category' στα πεδία
-FIELDS = ["datetime", "code", "price", "stock", "category"] 
+FIELDS = ["datetime", "code", "price", "stock", "category"]
 
 # --- Βοηθητικές Συναρτήσεις ---
 
@@ -21,8 +21,7 @@ def fetch_xml_content(url):
     print(f"Fetching XML from {url}...")
     headers = {'User-Agent': 'Mozilla/5.0'}
     r = requests.get(url, headers=headers)
-    r.raise_for_status()
-    print(f"Downloaded content (first 500 chars): {r.content[:500]}")
+    r.raise_for_status() # Σταματάει αν υπάρχει σφάλμα HTTP (π.χ. 404)
     print("XML fetched successfully.")
     return r.content
 
@@ -81,16 +80,16 @@ def process_products(products_xml_bytes, category_map):
     return rows
 
 def store_data(data_rows):
-    """Αποθηκεύει τα δεδομένα στο αρχείο CSV."""
+    """Αποθηκεύει τα δεδομένα στο αρχείο CSV με τον σωστό τρόπο."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     file_exists = os.path.isfile(OUTPUT_CSV)
     
     with open(OUTPUT_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         if not file_exists:
-            writer.writeheader()
+            writer.writeheader() # Γράφει την κεφαλίδα μόνο αν το αρχείο είναι νέο
         if data_rows:
-            writer.writerows(data_rows)
+            writer.writerows(data_rows) # Γράφει όλες τις σειρές
     print("Data stored successfully.")
 
 # --- Κύρια Λειτουργία ---
