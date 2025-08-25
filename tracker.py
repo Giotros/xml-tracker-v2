@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 
 # --- Ρυθμίσεις ---
 PRODUCTS_XML_URL = "https://acalight.gr/xml/data.xml"
-CATEGORIES_XML_URL = "https://www.acalight.com/cat_attr_gr_uk.xml" # Το νέο link
+CATEGORIES_XML_URL = "https://acalight.gr/xml/cat_attr_gr_uk.xml" # Το νέο link
 OUTPUT_DIR = "data"
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, "history.csv")
 # Προσθέσαμε το 'category' στα πεδία
