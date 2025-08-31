@@ -42,8 +42,6 @@ def create_category_map(categories_xml_bytes):
         return category_map
     
     root = ET.fromstring(categories_xml_bytes)
-    # --- Η ΔΙΟΡΘΩΣΗ ΕΙΝΑΙ ΕΔΩ ---
-    # Το .// βρίσκει το tag 'product' οπουδήποτε μέσα στο αρχείο.
     for product in root.findall('.//product'):
         code = product.find('Code')
         category = product.find('BigCatDescrGR')
@@ -53,7 +51,7 @@ def create_category_map(categories_xml_bytes):
     return category_map
 
 def process_products(products_xml_bytes, category_map):
-    """Επεξεργάζεται τα προϊόντα, συνδέει κατηγορίες και χρησιμοποιεί λέξεις-κλειδιά."""
+    """Επεξεργάζεται τα προϊόντα με 3 επίπεδα κατηγοριοποίησης."""
     print("Parsing products XML and calculating stock...")
     if not products_xml_bytes:
         return []
@@ -67,7 +65,7 @@ def process_products(products_xml_bytes, category_map):
     rows = []
     for _, r in df.iterrows():
         code = r.get("code")
-        product_name = str(r.get("descr_gr", "")).lower() 
+        product_name = str(r.get("descr_gr", "")).strip()
         price = float(str(r.get("WholeSalePricegr") or r.get("WholeSalePriceGR") or 0).replace(",", "."))
         total_stock = 0
         
@@ -80,15 +78,25 @@ def process_products(products_xml_bytes, category_map):
             except (ValueError, TypeError):
                 pass
         
-        category = category_map.get(code)
+        # --- ΝΕΑ ΛΟΓΙΚΗ ΚΑΤΗΓΟΡΙΟΠΟΙΗΣΗΣ 3 ΒΗΜΑΤΩΝ ---
+        category = "Άγνωστη Κατηγορία" # Προεπιλογή
         
-        if not category:
-            inferred_category = "Άγνωστη Κατηγορία"
+        # Βήμα 1: Προσπάθησε να βρεις την κατηγορία από το επίσημο αρχείο.
+        official_category = category_map.get(code)
+        if official_category:
+            category = official_category
+        else:
+            # Βήμα 2: Αν αποτύχει, ψάξε με λέξεις-κλειδιά.
+            found_by_keyword = False
             for keyword, cat_name in KEYWORD_CATEGORIES.items():
-                if keyword in product_name:
-                    inferred_category = cat_name
+                if keyword in product_name.lower():
+                    category = cat_name
+                    found_by_keyword = True
                     break
-            category = inferred_category
+            
+            # Βήμα 3: Αν αποτύχει κι αυτό, πάρε την πρώτη λέξη του ονόματος.
+            if not found_by_keyword and product_name:
+                category = product_name.split()[0].capitalize()
 
         rows.append({
             "datetime": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
