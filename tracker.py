@@ -13,9 +13,7 @@ OUTPUT_DIR = "data"
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, "history.csv")
 FIELDS = ["datetime", "code", "price", "stock", "category"]
 
-# --- ΝΕΟ: Λέξεις-Κλειδιά για Κατηγοριοποίηση ---
-# Πρόσθεσε εδώ όσες λέξεις θέλεις.
-# Η λογική είναι: 'λέξη που ψάχνουμε': 'Όνομα Κατηγορίας που θα μπει'
+# --- Λέξεις-Κλειδιά για Κατηγοριοποίηση ---
 KEYWORD_CATEGORIES = {
     'ανεμιστήρας': 'Ανεμιστήρες',
     'φωτιστικό οροφής': 'Φωτιστικά Οροφής',
@@ -24,7 +22,6 @@ KEYWORD_CATEGORIES = {
     'led': 'Προϊόντα LED',
     'ταινία': 'Ταινίες LED'
 }
-
 
 # --- Βοηθητικές Συναρτήσεις ---
 
@@ -45,7 +42,9 @@ def create_category_map(categories_xml_bytes):
         return category_map
     
     root = ET.fromstring(categories_xml_bytes)
-    for product in root.findall('product'):
+    # --- Η ΔΙΟΡΘΩΣΗ ΕΙΝΑΙ ΕΔΩ ---
+    # Το .// βρίσκει το tag 'product' οπουδήποτε μέσα στο αρχείο.
+    for product in root.findall('.//product'):
         code = product.find('Code')
         category = product.find('BigCatDescrGR')
         if code is not None and category is not None and code.text:
@@ -68,7 +67,6 @@ def process_products(products_xml_bytes, category_map):
     rows = []
     for _, r in df.iterrows():
         code = r.get("code")
-        # Παίρνουμε το όνομα του προϊόντος για να ψάξουμε τις λέξεις-κλειδιά
         product_name = str(r.get("descr_gr", "")).lower() 
         price = float(str(r.get("WholeSalePricegr") or r.get("WholeSalePriceGR") or 0).replace(",", "."))
         total_stock = 0
@@ -82,15 +80,14 @@ def process_products(products_xml_bytes, category_map):
             except (ValueError, TypeError):
                 pass
         
-        # Λογική Κατηγοριοποίησης
-        category = category_map.get(code) # 1. Προσπάθησε να βρεις την κατηγορία από το αρχείο
+        category = category_map.get(code)
         
-        if not category: # 2. Αν δεν βρεθεί, ψάξε με λέξεις-κλειδιά
-            inferred_category = "Άγνωστη Κατηγορία" # Προεπιλογή
+        if not category:
+            inferred_category = "Άγνωστη Κατηγορία"
             for keyword, cat_name in KEYWORD_CATEGORIES.items():
                 if keyword in product_name:
                     inferred_category = cat_name
-                    break # Σταμάτα μόλις βρεις την πρώτη λέξη-κλειδί
+                    break
             category = inferred_category
 
         rows.append({
