@@ -72,7 +72,7 @@ def process_acalight_products(products_xml_bytes, category_map):
                 category = product_name_raw.split()[0].capitalize()
         rows.append({
             "code": code, "price": price, "stock": total_stock, "category": category or "Άγνωστη Κατηγορία", "supplier": "AcaLight",
-            "is_discounted": "" # --- ΑΛΛΑΓΗ: Κενή τιμή ---
+            "is_discounted": "" # Κενή τιμή όπως ζητήθηκε
         })
     print(f"[AcaLight] Processed {len(rows)} products.")
     return rows
@@ -84,18 +84,19 @@ def process_pakoworld_products(xml_bytes):
     root = ET.fromstring(xml_bytes)
     rows = []
     for product in root.findall('.//product'):
+        # --- ΑΛΛΑΓΗ ΕΔΩ: Λογική για 1 ή 0 ---
         has_net_price_str = product.findtext('has_net_price', default='No').strip().lower()
-        is_discounted_text = "NAI" if has_net_price_str == 'yes' else "OXI" # --- ΑΛΛΑΓΗ: ΝΑΙ/ΟΧΙ ---
+        is_discounted_value = 1 if has_net_price_str == 'yes' else 0
 
         wholesale_price_str = product.findtext('price_wholesale', default='0')
         retail_price_str = product.findtext('price', default='0')
-        price_to_use_str = wholesale_price_str if is_discounted_text == "NAI" else retail_price_str
+        price_to_use_str = wholesale_price_str if is_discounted_value == 1 else retail_price_str
         final_price = float(price_to_use_str.replace(",", "."))
         rows.append({
             "code": product.findtext('model', default='').strip(),
             "price": final_price, "stock": int(product.findtext('quantity', default='0')),
             "category": product.findtext('category', default='').strip() or "Άγνωστη Κατηγορία", "supplier": "Pakoworld",
-            "is_discounted": is_discounted_text
+            "is_discounted": is_discounted_value # Χρήση του 1 ή 0
         })
     print(f"[Pakoworld] Processed {len(rows)} products.")
     return rows
@@ -119,7 +120,7 @@ def process_redpoint_products(xml_bytes):
             rows.append({
                 "code": code, "price": price, "stock": stock,
                 "category": product.findtext('κατηγοριεςπροιοντων', default='').strip() or "Άγνωστη Κατηγορία", "supplier": "Redpoint",
-                "is_discounted": "" # --- ΑΛΛΑΓΗ: Κενή τιμή ---
+                "is_discounted": "" # Κενή τιμή όπως ζητήθηκε
             })
         except (ValueError, TypeError) as e:
             print(f"[Redpoint] Skipping product due to data conversion error: {e}. ID: {product.findtext('ID', default='N/A')}")
@@ -151,7 +152,7 @@ def store_data(data_rows):
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         if not file_exists_and_is_ok: writer.writeheader()
         if data_rows:
-            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now_str = datetime.now().strftime('%Y%m-%d %H:%M:%S')
             for row in data_rows: row['datetime'] = now_str
             writer.writerows(data_rows)
     print("Data stored successfully.")
@@ -181,8 +182,5 @@ if __name__ == "__main__":
             print("All tasks completed successfully!")
         else:
             print("\nNo products found from any supplier.")
-    except Exception as e:
-        print(f"\nAn unexpected error occurred: {e}")
-            
     except Exception as e:
         print(f"\nAn unexpected error occurred: {e}")
