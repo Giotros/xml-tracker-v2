@@ -130,6 +130,7 @@ def process_redpoint_products(xml_bytes):
 
 # --- "Έξυπνη" Συνάρτηση Αποθήκευσης ---
 def store_data(data_rows):
+    """Αποθηκεύει τα δεδομένα, ελέγχοντας πρώτα τη δομή του αρχείου CSV."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     schema_is_ok = False
     if os.path.isfile(OUTPUT_CSV):
@@ -137,24 +138,34 @@ def store_data(data_rows):
             with open(OUTPUT_CSV, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 header = next(reader)
-                if header == FIELDS: schema_is_ok = True
-                else: print("!!! Schema mismatch detected. Archiving old history file.")
+                if header == FIELDS:
+                    schema_is_ok = True
+                else:
+                    print("!!! Schema mismatch detected. Archiving old history file.")
         except (StopIteration, csv.Error):
             print("!!! History file is empty or corrupt. Will create a new one.")
             schema_is_ok = False
+
     if os.path.isfile(OUTPUT_CSV) and not schema_is_ok:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         archive_name = os.path.join(OUTPUT_DIR, f"history_archived_{timestamp}.csv")
         os.rename(OUTPUT_CSV, archive_name)
         print(f"Old history file archived as: {archive_name}")
+
     file_exists_and_is_ok = os.path.isfile(OUTPUT_CSV) and schema_is_ok
+    
     with open(OUTPUT_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
-        if not file_exists_and_is_ok: writer.writeheader()
+        if not file_exists_and_is_ok:
+            writer.writeheader()
+        
         if data_rows:
-            now_str = datetime.now().strftime('%Y%m-%d %H:%M:%S')
-            for row in data_rows: row['datetime'] = now_str
+            # Αυτή η γραμμή εξασφαλίζει τη ΣΩΣΤΗ μορφή ημερομηνίας
+            now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            for row in data_rows:
+                row['datetime'] = now_str
             writer.writerows(data_rows)
+            
     print("Data stored successfully.")
 
 
