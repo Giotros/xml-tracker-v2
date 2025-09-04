@@ -10,16 +10,15 @@ import xml.etree.ElementTree as ET
 ACALIGHT_PRODUCTS_URL = "https://acalight.gr/xml/data.xml"
 ACALIGHT_CATEGORIES_URL = "https://acalight.gr/xml/cat_attr_gr_uk.xml"
 PAKOWORLD_URL = "https://www.pakoworld.com/?route=extension/feed/csxml_feed&token=MTYxMThMUDg0Mw==&lang=el"
+REDPOINT_URL = "https://www.redpoint.gr/wp-content/uploads/wpallexport/exports/3fc9716eeeab6756453fe12d9e45ed0a/XML-%CE%A0%CE%A1%CE%9F%CE%99%CE%9F%CE%9D%CE%A4%CE%91-REDPOINT.xml"
 
 OUTPUT_DIR = "data"
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, "history.csv")
 FIELDS = ["datetime", "code", "price", "stock", "category", "supplier"]
 
-
-# --- Βοηθητικές Συναρτήσεις ---
+# (Οι βοηθητικές συναρτήσεις normalize_text, KEYWORD_CATEGORIES, fetch_xml_content παραμένουν ίδιες)
 
 def normalize_text(text):
-    """Μετατρέπει σε μικρά, αφαιρεί τόνους και βασικά σημεία στίξης."""
     if not isinstance(text, str): return ""
     text = text.lower()
     replacements = {'ά': 'α', 'έ': 'ε', 'ή': 'η', 'ί': 'ι', 'ό': 'ο', 'ύ': 'υ', 'ώ': 'ω', 'ϊ': 'ι', 'ϋ': 'υ', 'ΐ': 'ι', 'ΰ': 'υ'}
@@ -27,14 +26,9 @@ def normalize_text(text):
     for p in ".,-/_": text = text.replace(p, " ")
     return text.strip()
 
-KEYWORD_CATEGORIES = {
-    'ανεμιστηρας': 'Ανεμιστήρες', 'φωτιστικο οροφης': 'Φωτιστικά Οροφής', 
-    'spot': 'Φωτιστικά Spot', 'απλικα': 'Απλίκες Τοίχου', 
-    'led': 'Προϊόντα LED', 'ταινια': 'Ταινίες LED'
-}
+KEYWORD_CATEGORIES = {'ανεμιστηρας': 'Ανεμιστήρες', 'φωτιστικο οροφης': 'Φωτιστικά Οροφής', 'spot': 'Φωτιστικά Spot', 'απλικα': 'Απλίκες Τοίχου', 'led': 'Προϊόντα LED', 'ταινια': 'Ταινίες LED'}
 
 def fetch_xml_content(url, supplier_name):
-    """Κατεβάζει το περιεχόμενο ενός XML από ένα URL."""
     print(f"[{supplier_name}] Fetching XML from {url}...")
     headers = {'User-Agent': 'Mozilla/5.0'}
     r = requests.get(url, headers=headers, timeout=60)
@@ -42,8 +36,8 @@ def fetch_xml_content(url, supplier_name):
     print(f"[{supplier_name}] XML fetched successfully.")
     return r.content
 
+# --- Συναρτήσεις για AcaLight ---
 def create_acalight_category_map(categories_xml_bytes):
-    """Δημιουργεί ένα λεξικό {code: category} από το XML κατηγοριών της AcaLight."""
     print("[AcaLight] Creating category map...")
     category_map = {}
     if not categories_xml_bytes: return category_map
@@ -57,21 +51,19 @@ def create_acalight_category_map(categories_xml_bytes):
     return category_map
 
 def process_acalight_products(products_xml_bytes, category_map):
-    """Επεξεργάζεται τα προϊόντα της AcaLight."""
     print("[AcaLight] Processing products...")
+    # ... (ο κώδικας για την AcaLight παραμένει ακριβώς ο ίδιος)
     if not products_xml_bytes: return []
     try:
         df = pd.read_xml(BytesIO(products_xml_bytes), xpath=".//product")
     except ValueError:
         return []
-        
     rows = []
     for _, r in df.iterrows():
         code = r.get("code")
         product_name_raw = str(r.get("descr_gr", "")).strip()
         price = float(str(r.get("WholeSalePricegr") or r.get("WholeSalePriceGR") or 0).replace(",", "."))
         total_stock = sum(int(r.get(qty_col, 0) or 0) for status_col in ["SerresStockStatus", "AthensStockStatus", "BgStockStatus"] for qty_col in [("B2BGreenFromQty" if str(r.get(status_col, "")).strip().lower() == "green" else "B2BOrangeFromQty")])
-
         category = category_map.get(code)
         if not category:
             normalized_name = normalize_text(product_name_raw)
@@ -81,14 +73,15 @@ def process_acalight_products(products_xml_bytes, category_map):
                     category = cat_name; found_by_keyword = True; break
             if not found_by_keyword and product_name_raw:
                 category = product_name_raw.split()[0].capitalize()
-        
         rows.append({"code": code, "price": price, "stock": total_stock, "category": category or "Άγνωστη Κατηγορία", "supplier": "AcaLight"})
     print(f"[AcaLight] Processed {len(rows)} products.")
     return rows
 
+
+# --- Συνάρτηση για Pakoworld ---
 def process_pakoworld_products(xml_bytes):
-    """Επεξεργάζεται τα προϊόντα της Pakoworld."""
     print("[Pakoworld] Processing products...")
+    # ... (ο κώδικας για την Pakoworld παραμένει ακριβώς ο ίδιος)
     if not xml_bytes: return []
     root = ET.fromstring(xml_bytes)
     rows = []
@@ -103,8 +96,41 @@ def process_pakoworld_products(xml_bytes):
     print(f"[Pakoworld] Processed {len(rows)} products.")
     return rows
 
+# --- ΝΕΑ ΣΥΝΑΡΤΗΣΗ ΓΙΑ REDPOINT ---
+def process_redpoint_products(xml_bytes):
+    """Επεξεργάζεται τα προϊόντα της Redpoint."""
+    print("[Redpoint] Processing products...")
+    if not xml_bytes: return []
+    root = ET.fromstring(xml_bytes)
+    rows = []
+    # WP All Export συνήθως χρησιμοποιεί το tag <post> για κάθε προϊόν
+    for product in root.findall('.//post'):
+        try:
+            # Μετατροπή τιμής σε float, αφαιρώντας το σύμβολο του ευρώ αν υπάρχει
+            price_str = product.findtext('price', default='0').replace('€', '').replace(',', '.').strip()
+            price = float(price_str if price_str else 0)
+            
+            # Μετατροπή αποθέματος σε int
+            stock_str = product.findtext('_stock', default='0')
+            stock = int(float(stock_str)) if stock_str else 0
+
+            rows.append({
+                "code": product.findtext('sku', default='').strip(),
+                "price": price,
+                "stock": stock,
+                "category": product.findtext('κατηγοριεςπροιοντων', default='').strip() or "Άγνωστη Κατηγορία",
+                "supplier": "Redpoint"
+            })
+        except (ValueError, TypeError) as e:
+            print(f"[Redpoint] Skipping product due to data conversion error: {e}. SKU: {product.findtext('sku', default='N/A')}")
+
+    print(f"[Redpoint] Processed {len(rows)} products.")
+    return rows
+
+
+# --- Συνάρτηση Αποθήκευσης ---
 def store_data(data_rows):
-    """Αποθηκεύει τα δεδομένα, ελέγχοντας πρώτα τη δομή του αρχείου CSV."""
+    # ... (η "έξυπνη" συνάρτηση αποθήκευσης παραμένει ακριβώς η ίδια)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     schema_is_ok = False
     if os.path.isfile(OUTPUT_CSV):
@@ -114,31 +140,25 @@ def store_data(data_rows):
                 header = next(reader)
                 if header == FIELDS:
                     schema_is_ok = True
-                else:
-                    print("!!! Schema mismatch detected. Archiving old history file.")
+                else: print("!!! Schema mismatch detected. Archiving old history file.")
         except (StopIteration, csv.Error):
             print("!!! History file is empty or corrupt. Will create a new one.")
             schema_is_ok = False
-
     if os.path.isfile(OUTPUT_CSV) and not schema_is_ok:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         archive_name = os.path.join(OUTPUT_DIR, f"history_archived_{timestamp}.csv")
         os.rename(OUTPUT_CSV, archive_name)
         print(f"Old history file archived as: {archive_name}")
-
     file_exists_and_is_ok = os.path.isfile(OUTPUT_CSV) and schema_is_ok
-    
     with open(OUTPUT_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         if not file_exists_and_is_ok:
             writer.writeheader()
-        
         if data_rows:
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             for row in data_rows:
                 row['datetime'] = now_str
             writer.writerows(data_rows)
-            
     print("Data stored successfully.")
 
 
@@ -157,6 +177,11 @@ if __name__ == "__main__":
         pakoworld_xml = fetch_xml_content(PAKOWORLD_URL, "Pakoworld")
         pakoworld_data = process_pakoworld_products(pakoworld_xml)
         all_products.extend(pakoworld_data)
+        
+        # ---- Επεξεργασία Redpoint ----
+        redpoint_xml = fetch_xml_content(REDPOINT_URL, "Redpoint")
+        redpoint_data = process_redpoint_products(redpoint_xml)
+        all_products.extend(redpoint_data)
 
         # ---- Αποθήκευση Όλων των Δεδομένων ----
         if all_products:
