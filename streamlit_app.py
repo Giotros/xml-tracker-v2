@@ -13,11 +13,14 @@ HISTORY_CSV = "data/history.csv"
 
 @st.cache_data
 def load_data():
-    """Διαβάζει το κεντρικό CSV αρχείο."""
+    """Διαβάζει το κεντρικό CSV αρχείο και αγνοεί τις προβληματικές ημερομηνίες."""
     if not os.path.exists(HISTORY_CSV):
         return pd.DataFrame()
     df = pd.read_csv(HISTORY_CSV)
-    df["datetime"] = pd.to_datetime(df["datetime"])
+    # Η προσθήκη errors='coerce' αγνοεί τα σφάλματα αντί να κρασάρει
+    df["datetime"] = pd.to_datetime(df["datetime"], errors='coerce')
+    # Αφαιρούμε όποια γραμμή είχε προβληματική ημερομηνία
+    df.dropna(subset=['datetime'], inplace=True)
     df["date"] = df["datetime"].dt.date
     return df
 
