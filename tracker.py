@@ -16,8 +16,7 @@ OUTPUT_DIR = "data"
 OUTPUT_CSV = os.path.join(OUTPUT_DIR, "history.csv")
 FIELDS = ["datetime", "code", "price", "stock", "category", "supplier", "is_discounted"]
 
-
-# (Οι βοηθητικές συναρτήσεις normalize_text, KEYWORD_CATEGORIES, fetch_xml_content παραμένουν ίδιες)
+# (Οι βοηθητικές συναρτήσεις παραμένουν ίδιες)
 def normalize_text(text):
     if not isinstance(text, str): return ""
     text = text.lower()
@@ -72,21 +71,21 @@ def process_acalight_products(products_xml_bytes, category_map):
                 category = product_name_raw.split()[0].capitalize()
         rows.append({
             "code": code, "price": price, "stock": total_stock, "category": category or "Άγνωστη Κατηγορία", "supplier": "AcaLight",
-            "is_discounted": "" # Κενή τιμή όπως ζητήθηκε
+            "is_discounted": ""
         })
     print(f"[AcaLight] Processed {len(rows)} products.")
     return rows
 
-# --- Συνάρτηση για Pakoworld ---
+# --- Συνάρτηση για Pakoworld (ΔΙΟΡΘΩΜΕΝΗ) ---
 def process_pakoworld_products(xml_bytes):
     print("[Pakoworld] Processing products...")
     if not xml_bytes: return []
     root = ET.fromstring(xml_bytes)
     rows = []
     for product in root.findall('.//product'):
-        # --- ΑΛΛΑΓΗ ΕΔΩ: Λογική για 1 ή 0 ---
-        has_net_price_str = product.findtext('has_net_price', default='No').strip().lower()
-        is_discounted_value = 1 if has_net_price_str == 'yes' else 0
+        # --- ΑΛΛΑΓΗ ΕΔΩ: Διαβάζουμε το '1' ή '0' από το CDATA ---
+        has_net_price_str = product.findtext('has_net_price', default='0').strip()
+        is_discounted_value = 1 if has_net_price_str == '1' else 0
 
         wholesale_price_str = product.findtext('price_wholesale', default='0')
         retail_price_str = product.findtext('price', default='0')
@@ -96,7 +95,7 @@ def process_pakoworld_products(xml_bytes):
             "code": product.findtext('model', default='').strip(),
             "price": final_price, "stock": int(product.findtext('quantity', default='0')),
             "category": product.findtext('category', default='').strip() or "Άγνωστη Κατηγορία", "supplier": "Pakoworld",
-            "is_discounted": is_discounted_value # Χρήση του 1 ή 0
+            "is_discounted": is_discounted_value
         })
     print(f"[Pakoworld] Processed {len(rows)} products.")
     return rows
@@ -120,7 +119,7 @@ def process_redpoint_products(xml_bytes):
             rows.append({
                 "code": code, "price": price, "stock": stock,
                 "category": product.findtext('κατηγοριεςπροιοντων', default='').strip() or "Άγνωστη Κατηγορία", "supplier": "Redpoint",
-                "is_discounted": "" # Κενή τιμή όπως ζητήθηκε
+                "is_discounted": ""
             })
         except (ValueError, TypeError) as e:
             print(f"[Redpoint] Skipping product due to data conversion error: {e}. ID: {product.findtext('ID', default='N/A')}")
@@ -130,7 +129,6 @@ def process_redpoint_products(xml_bytes):
 
 # --- "Έξυπνη" Συνάρτηση Αποθήκευσης ---
 def store_data(data_rows):
-    """Αποθηκεύει τα δεδομένα, ελέγχοντας πρώτα τη δομή του αρχείου CSV."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     schema_is_ok = False
     if os.path.isfile(OUTPUT_CSV):
@@ -138,34 +136,24 @@ def store_data(data_rows):
             with open(OUTPUT_CSV, 'r', newline='', encoding='utf-8') as f:
                 reader = csv.reader(f)
                 header = next(reader)
-                if header == FIELDS:
-                    schema_is_ok = True
-                else:
-                    print("!!! Schema mismatch detected. Archiving old history file.")
+                if header == FIELDS: schema_is_ok = True
+                else: print("!!! Schema mismatch detected. Archiving old history file.")
         except (StopIteration, csv.Error):
             print("!!! History file is empty or corrupt. Will create a new one.")
             schema_is_ok = False
-
     if os.path.isfile(OUTPUT_CSV) and not schema_is_ok:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         archive_name = os.path.join(OUTPUT_DIR, f"history_archived_{timestamp}.csv")
         os.rename(OUTPUT_CSV, archive_name)
         print(f"Old history file archived as: {archive_name}")
-
     file_exists_and_is_ok = os.path.isfile(OUTPUT_CSV) and schema_is_ok
-    
     with open(OUTPUT_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
-        if not file_exists_and_is_ok:
-            writer.writeheader()
-        
+        if not file_exists_and_is_ok: writer.writeheader()
         if data_rows:
-            # Αυτή η γραμμή εξασφαλίζει τη ΣΩΣΤΗ μορφή ημερομηνίας
             now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            for row in data_rows:
-                row['datetime'] = now_str
+            for row in data_rows: row['datetime'] = now_str
             writer.writerows(data_rows)
-            
     print("Data stored successfully.")
 
 
